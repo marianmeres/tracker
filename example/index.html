@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>@marianmeres/tracker — vanilla example</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 720px;
+				margin: 2rem auto;
+				padding: 0 1rem;
+				line-height: 1.5;
+			}
+			h2 {
+				margin-top: 2rem;
+			}
+			button {
+				margin: 0.2rem 0.4rem 0.2rem 0;
+				padding: 0.4rem 0.7rem;
+			}
+			pre {
+				background: #f4f4f4;
+				padding: 0.6rem;
+				overflow: auto;
+			}
+			code {
+				background: #f4f4f4;
+				padding: 0 0.3rem;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>
+			<a href="https://github.com/marianmeres/tracker"
+				>@marianmeres/tracker</a
+			>
+			— vanilla example
+		</h1>
+		<p>
+			Open the browser console. Every <code>track()</code> call is logged
+			(via <code>debug: true</code>); every batch flush is logged by the
+			transport itself. Default flush is every 5s or when 10 events queue
+			up.
+		</p>
+
+		<h2>Strategy 1: inline <code>onclick</code></h2>
+		<p>
+			The tracker is exposed as <code>window.tracker</code>, so handlers
+			can call it directly.
+		</p>
+		<button
+			onclick="
+				tracker.track('button.click', {
+					id: 'inline-a',
+					label: 'Inline A',
+				})
+			"
+		>
+			Track "button.click" (inline)
+		</button>
+		<button onclick="tracker.track('menu.enter', { item: 'pricing' })">
+			Track "menu.enter" (inline)
+		</button>
+		<button
+			onclick="
+				tracker.track('form.submit', {
+					form: 'signup',
+					email: 'alice@example.com',
+				})
+			"
+		>
+			Track "form.submit" — note PII middleware redacts the email
+		</button>
+
+		<h2>Strategy 2: <code>data-*</code> attributes</h2>
+		<p>
+			A single document-level click listener reads
+			<code>data-track</code> (event name) and the optional
+			<code>data-track-payload</code> (JSON). No per-element JS — just
+			markup.
+		</p>
+		<button
+			data-track="button.click"
+			data-track-payload='{"id":"declarative-a","label":"Declarative A"}'
+		>
+			Track "button.click" (data-*)
+		</button>
+		<button data-track="menu.enter" data-track-payload='{"item":"docs"}'>
+			Track "menu.enter" (data-*)
+		</button>
+		<button
+			data-track="demo.custom"
+			data-track-payload='{"source":"hero","variant":"B"}'
+		>
+			Track "demo.custom" (data-*)
+		</button>
+
+		<h2>Controls</h2>
+		<button onclick="tracker.flush()">flush()</button>
+		<button onclick="tracker.pause()">pause()</button>
+		<button onclick="tracker.resume()">resume()</button>
+		<button onclick="clog('dump:', tracker.dump())">dump()</button>
+		<button onclick="tracker.clear()">clear()</button>
+
+		<h2>Live state</h2>
+		<pre id="state">(loading…)</pre>
+
+		<script type="module" src="./dist/bundle.js"></script>
+	</body>
+</html>

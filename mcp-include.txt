@@ -1,0 +1,1 @@
+Framework-agnostic application event tracker that buffers user/session/UI events and forwards them to a transport in batches. Built on @marianmeres/batch with type-safe event maps, identify/context/super-properties, enrichers + middleware (PII scrubbing, allow-lists, consent gates), pause/resume, and an opt-in browser unload helper that flushes via navigator.sendBeacon.
