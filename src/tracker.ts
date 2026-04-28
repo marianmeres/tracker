@@ -176,12 +176,13 @@ export class Tracker<TEventMap extends EventMap = EventMap> {
 		}
 
 		this.#batch = new BatchFlusher<TrackedEvent<TEventMap>>(
-			async (events) => {
+			async (events): Promise<boolean> => {
 				if (options.debug) {
 					this.#logger.log("flushing batch", events.length);
 				}
-				const result = await options.transport(events);
-				return result === undefined ? true : result;
+				// `transport` may resolve to `boolean | void`. Treat anything
+				// other than literal `false` (incl. `undefined`/`void`) as success.
+				return (await options.transport(events)) !== false;
 			},
 			{
 				flushIntervalMs: options.flushIntervalMs ?? 5000,
