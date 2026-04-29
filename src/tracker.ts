@@ -59,7 +59,7 @@ export interface TrackerOptions<TEventMap extends EventMap = EventMap> {
 	 */
 	transport: (events: TrackedEvent<TEventMap>[]) => Promise<boolean | void>;
 
-	/** Batch flush cadence in ms. @default 5000 */
+	/** Batch flush cadence in ms. @default 1000 */
 	flushIntervalMs?: number;
 	/** Flush immediately when buffer reaches N items. @default 50 */
 	flushThreshold?: number;
@@ -172,7 +172,9 @@ export class Tracker<TEventMap extends EventMap = EventMap> {
 
 		if (options.user) {
 			this.#userId = options.user.id;
-			this.#traits = options.user.traits ? { ...options.user.traits } : null;
+			this.#traits = options.user.traits
+				? { ...options.user.traits }
+				: null;
 		}
 
 		this.#batch = new BatchFlusher<TrackedEvent<TEventMap>>(
@@ -185,11 +187,15 @@ export class Tracker<TEventMap extends EventMap = EventMap> {
 				return (await options.transport(events)) !== false;
 			},
 			{
-				flushIntervalMs: options.flushIntervalMs ?? 5000,
+				flushIntervalMs: options.flushIntervalMs ?? 1000,
 				flushThreshold: options.flushThreshold ?? 50,
 				maxBatchSize: options.maxBatchSize ?? 500,
 				onFlushError: (items, err) => {
-					this.#logger.warn("flush failed, requeued", items.length, err);
+					this.#logger.warn(
+						"flush failed, requeued",
+						items.length,
+						err,
+					);
 				},
 				onDrop: (items) => {
 					this.#logger.warn("dropped", items.length);
@@ -223,12 +229,16 @@ export class Tracker<TEventMap extends EventMap = EventMap> {
 			return;
 		}
 
-		let envelope: TrackedEvent<TEventMap> = buildEnvelope<TEventMap>(name, data, {
-			sessionId: this.#sessionId,
-			userId: this.#userId,
-			traits: this.#traits,
-			context: this.#context,
-		});
+		let envelope: TrackedEvent<TEventMap> = buildEnvelope<TEventMap>(
+			name,
+			data,
+			{
+				sessionId: this.#sessionId,
+				userId: this.#userId,
+				traits: this.#traits,
+				context: this.#context,
+			},
+		);
 
 		for (const fn of this.#enrichers) {
 			envelope = fn(envelope);

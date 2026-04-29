@@ -48,7 +48,7 @@ const tracker = new Tracker<Events>({
             body: JSON.stringify({ events }),
         });
     },
-    flushIntervalMs: 5000,
+    flushIntervalMs: 1000,
     flushThreshold: 50,
     context: { appVersion: "1.2.3" },
 });
@@ -268,7 +268,7 @@ declaration order, after enrichers.
 | Field             | Type                                                  | Default       | Notes                                                                 |
 | ----------------- | ----------------------------------------------------- | ------------- | --------------------------------------------------------------------- |
 | `transport`       | `(events: TrackedEvent<TEventMap>[]) => Promise<boolean \| void>` | _required_ | See [Transport contract](#transport-contract)                          |
-| `flushIntervalMs` | `number`                                              | `5000`        | Auto-flush cadence                                                    |
+| `flushIntervalMs` | `number`                                              | `1000`        | Auto-flush cadence                                                    |
 | `flushThreshold`  | `number`                                              | `50`          | Flush immediately at N items                                          |
 | `maxBatchSize`    | `number`                                              | `500`         | Drop oldest when buffer exceeds this                                  |
 | `debug`           | `boolean`                                             | `false`       | Tee every event through `logger.log` at track time                    |

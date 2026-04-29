@@ -37,7 +37,7 @@ const tracker = new Tracker<Events>({
             body: JSON.stringify({ events }),
         });
     },
-    flushIntervalMs: 5000,
+    flushIntervalMs: 1000,
     flushThreshold: 50,
     context: { appVersion: "1.2.3" },
 });
