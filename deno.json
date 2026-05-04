@@ -15,7 +15,7 @@
     "rpm": "deno task release minor -y && deno task publish"
   },
   "imports": {
-    "@marianmeres/batch": "jsr:@marianmeres/batch@^1.2.1",
+    "@marianmeres/batch": "jsr:@marianmeres/batch@^1.2.3",
     "@marianmeres/clog": "jsr:@marianmeres/clog@^3.17.1",
     "@marianmeres/npmbuild": "jsr:@marianmeres/npmbuild@^1.14.0",
     "@marianmeres/pubsub": "jsr:@marianmeres/pubsub@^3.0.0",

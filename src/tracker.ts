@@ -73,7 +73,7 @@ export interface TrackerOptions<TEventMap extends EventMap = EventMap> {
 	debug?: boolean;
 
 	/** Optional logger override. @default `createClog("tracker")` */
-	logger?: Pick<Console, "log" | "warn" | "error">;
+	logger?: Pick<Console, "log" | "warn" | "error" | "debug">;
 
 	/**
 	 * Run in order at track() time AFTER built-in envelope construction but
@@ -124,7 +124,7 @@ export interface TrackerState {
  */
 type TrackArgs<T> = undefined extends T ? [data?: T] : [data: T];
 
-type Logger = Pick<Console, "log" | "warn" | "error">;
+type Logger = Pick<Console, "log" | "warn" | "error" | "debug">;
 
 /**
  * Client-side event tracker with pluggable transport, enrichers, middleware,
@@ -180,7 +180,7 @@ export class Tracker<TEventMap extends EventMap = EventMap> {
 		this.#batch = new BatchFlusher<TrackedEvent<TEventMap>>(
 			async (events): Promise<boolean> => {
 				if (options.debug) {
-					this.#logger.log("flushing batch", events.length);
+					this.#logger.debug("flushing batch", events.length);
 				}
 				// `transport` may resolve to `boolean | void`. Treat anything
 				// other than literal `false` (incl. `undefined`/`void`) as success.
@@ -224,7 +224,7 @@ export class Tracker<TEventMap extends EventMap = EventMap> {
 
 		if (this.#paused) {
 			if (this.#options.debug) {
-				this.#logger.log("track (paused, dropped)", name, data);
+				this.#logger.debug("track (paused, dropped)", name, data);
 			}
 			return;
 		}
@@ -245,7 +245,7 @@ export class Tracker<TEventMap extends EventMap = EventMap> {
 		}
 
 		if (this.#options.debug) {
-			this.#logger.log("track", envelope);
+			this.#logger.debug("track", envelope);
 		}
 
 		for (const fn of this.#middleware) {

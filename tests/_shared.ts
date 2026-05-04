@@ -33,4 +33,5 @@ export const silentLogger = {
 	log: () => {},
 	warn: () => {},
 	error: () => {},
+	debug: () => {},
 };
