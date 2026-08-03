@@ -100,7 +100,7 @@ dependencies (NOT dev/test ones).
 | Patch | `deno task rp`       |
 | Minor | `deno task rpm`      |
 
-Both run `@marianmeres/deno-release` (which writes the new version to
+Both run `@marianmeres/release` (which writes the new version to
 `deno.json` and creates a git tag) followed by `deno publish` (JSR) and
 `npm publish` (after `npm:build`).
 
