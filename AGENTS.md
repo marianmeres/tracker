@@ -38,8 +38,9 @@ helper.
 2. **Capture-at-track-time** — `eventId`, `timestamp`, `context`, and `traits` are snapshotted when `track()` runs, not at flush.
 3. **Transport return semantics** — `true`/`void` = consumed; `false` = dropped; throw = requeued at head. Mirror `@marianmeres/batch` exactly.
 4. **No DOM at module scope** — `attachUnloadFlush()` must remain a no-op in non-browser runtimes; runtime-detect `addEventListener`, `navigator.sendBeacon`, `document.visibilityState`.
-5. **Permissive default `EventMap`** — `Tracker` without a generic argument must accept any string event name and arbitrary payload.
-6. **Tabs, not spaces** — `deno.json` enforces `useTabs: true`, `indentWidth: 4`, `lineWidth: 90`.
+5. **Permissive default `EventMap`** — `Tracker` without a generic argument (and explicitly `Tracker<EventMap>`, which `unload.ts` uses) must accept any string event name and arbitrary payload. "Permissive" means precisely **a map with a string index signature and _zero_ declared keys**. That is the load-bearing discriminator in `EventName<M>`: index signature **and** declared keys = a map opened by accident (`interface X extends EventMap`) and is rejected. Do not "simplify" the `DeclaredKeys` check away — without it there is no predicate that separates the sanctioned open map from the bug.
+6. **Constrain event-map generics with `ValidEventMap<M>`** — never `M extends EventMap`. The structural form requires a string index signature, which a plain `interface` lacks; rejecting plain interfaces is what pushed consumers into `extends EventMap` in the first place. Every public generic (`Tracker`, `TrackerOptions`, `TrackedEvent`, `Enricher`, `Middleware`, `buildEnvelope`) must use the same constraint — a partial change still compiles here and only breaks in consumer code that names the type directly.
+7. **Tabs, not spaces** — `deno.json` enforces `useTabs: true`, `indentWidth: 4`, `lineWidth: 90`.
 
 ## Before Making Changes
 

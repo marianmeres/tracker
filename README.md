@@ -19,27 +19,84 @@ deno add jsr:@marianmeres/tracker
 npm install @marianmeres/tracker
 ```
 
+## Upgrading to 1.2.0 — one breaking change
+
+> **If your event map is declared as `interface MyEvents extends EventMap`, it
+> will no longer compile.** This is a breaking type-level change shipped in a
+> minor release: the pattern it rejects was silently broken, and nothing that
+> was actually working stops working.
+
+`EventMap` is `Record<string, EventPayload>`, so an **interface** that extends
+it inherits its string index signature. That re-opens the map — `track()`
+accepts _any_ string, typos included — while autocomplete and payload typing
+keep working for the declared keys, so nothing looks wrong in review:
+
+```ts
+interface MyEvents extends EventMap {
+	"chat.mode.toggle": { from: "voice" | "text"; to: "voice" | "text" };
+}
+
+tracker.track("audio.volume.set", { value: 3 }); // 1.1.x: compiles. 1.2.0: error.
+```
+
+The library used to push you into writing that, because the old
+`M extends EventMap` constraint rejected a plain `interface` and `extends
+EventMap` was the obvious way to silence the error. Both halves are fixed:
+
+```diff
+-export interface MyEvents extends EventMap {
++export type MyEvents = {
+ 	"chat.mode.toggle": { from: "voice" | "text"; to: "voice" | "text" };
+-}
++};
+```
+
+…or keep `interface` and just drop the `extends` — 1.2.0 accepts a plain
+interface, which 1.1.x did not:
+
+```ts
+export interface MyEvents {
+	"chat.mode.toggle": { from: "voice" | "text"; to: "voice" | "text" };
+}
+```
+
+Either way, add any event names the open map had been letting through.
+
+**Not affected:** `new Tracker({...})` with no generic argument, an explicit
+`Tracker<EventMap>`, `Tracker<any>`, map declared as a `type` alias, and
+consumer generics written `<M extends EventMap>`. All still compile unchanged.
+
+Need a deliberate open namespace? Intersect one in — a template-literal index
+signature is not a `string` one, so it survives the check and stays greppable
+by prefix:
+
+```ts
+type MyEvents =
+	& { "chat.mode.toggle": { from: string; to: string } }
+	& Record<`experiment.${string}`, Record<string, unknown> | undefined>;
+```
+
 ## Usage
 
 ```ts
-import { Tracker, attachUnloadFlush } from "@marianmeres/tracker";
+import { attachUnloadFlush, Tracker } from "@marianmeres/tracker";
 
 type Events = {
-    "chat.mode.toggle": { from: "voice" | "text"; to: "voice" | "text" };
-    "quiz.skip":        { moduleId: string; questionId?: string };
-    "menu.enter":       { item: string } | undefined;
+	"chat.mode.toggle": { from: "voice" | "text"; to: "voice" | "text" };
+	"quiz.skip": { moduleId: string; questionId?: string };
+	"menu.enter": { item: string } | undefined;
 };
 
 const tracker = new Tracker<Events>({
-    transport: async (events) => {
-        await fetch("/api/events", {
-            method: "POST",
-            body: JSON.stringify({ events }),
-        });
-    },
-    flushIntervalMs: 1000,
-    flushThreshold: 50,
-    context: { appVersion: "1.2.3" },
+	transport: async (events) => {
+		await fetch("/api/events", {
+			method: "POST",
+			body: JSON.stringify({ events }),
+		});
+	},
+	flushIntervalMs: 1000,
+	flushThreshold: 50,
+	context: { appVersion: "1.2.3" },
 });
 
 tracker.identify("user-123", { plan: "pro" });
@@ -54,6 +111,8 @@ attachUnloadFlush(tracker, { beaconUrl: "/api/events/beacon" });
 ## Features
 
 - **Type-safe event map** — declare a `TEventMap` and `track()` autocompletes event names + enforces payload shape. Without a map the API stays permissive.
+
+  Declare it as a `type` alias (above) or a plain `interface` — both work. Do **not** write `interface MyEvents extends EventMap`: that inherits `EventMap`'s string index signature and silently re-opens the map, so every name compiles (typos included) while autocomplete keeps working. `track()` rejects such a map with an explanatory error.
 - **Batching** — interval + threshold-based, with a hard `maxBatchSize` cap.
 - **Transport contract** — `true` consumed, `false` dropped, throw to requeue at head. No built-in retry/backoff (layer it inside your transport).
 - **Enrichers + middleware** — synchronous transformers / drop hooks for PII scrubbing, allow-lists, consent gates, etc.

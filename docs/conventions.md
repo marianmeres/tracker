@@ -52,12 +52,12 @@ const result = await options.transport(events);
 return result === undefined ? true : result;
 ```
 
-| return  | meaning                                  |
-| ------- | ---------------------------------------- |
-| `true`  | success — items consumed                 |
-| `void`  | treated as `true`                        |
-| `false` | handled failure — items dropped          |
-| _throw_ | requeued at head, retried on next flush  |
+| return  | meaning                                 |
+| ------- | --------------------------------------- |
+| `true`  | success — items consumed                |
+| `void`  | treated as `true`                       |
+| `false` | handled failure — items dropped         |
+| _throw_ | requeued at head, retried on next flush |
 
 ### Runtime-detect browser globals
 
@@ -69,6 +69,40 @@ if (typeof addListener !== "function") return () => {};
 // ❌ Don't — module-scope reference to window/document/navigator breaks SSR.
 window.addEventListener("pagehide", ...);
 ```
+
+### Declaring an event map — never `extends EventMap`
+
+```ts
+// ✅ Do — a closed catalog: type alias or plain interface, both work
+type Events = { "a.b": { x: number } };
+interface Events2 {
+	"a.b": { x: number };
+}
+
+// ✅ Do — a deliberate ad-hoc namespace, greppable by prefix
+type Events3 =
+	& { "a.b": { x: number } }
+	& Record<`experiment.${string}`, Record<string, unknown> | undefined>;
+
+// ❌ Don't — inherits EventMap's string index signature, which silently
+//   re-opens the map: every name compiles, typos included, while
+//   autocomplete keeps working so nothing looks wrong.
+interface Events4 extends EventMap {
+	"a.b": { x: number };
+}
+```
+
+`track()` disqualifies a map that has **both** an index signature and declared
+keys, so `Events4` now fails to compile — but only at the call site. The
+discriminator is exactly "index signature + zero declared keys = the deliberate
+open map"; see `EventName` in [`src/tracker.ts`](../src/tracker.ts) and do not
+simplify it away.
+
+The constraint on every public generic is `ValidEventMap<M>`, **not**
+`M extends EventMap`. The structural form demands a string index signature,
+which a plain `interface` does not have — so it rejected plain interfaces and
+pushed people into writing `extends EventMap`. The library manufactured the
+footgun; the self-referential constraint removes the incentive.
 
 ### `EventMap` + `TrackArgs` ergonomics
 
@@ -89,15 +123,17 @@ type Bad<T> = T extends undefined ? [data?: T] : [data: T];
 
 ## Anti-Patterns
 
-| Don't                                              | Do instead                                              |
-| -------------------------------------------------- | ------------------------------------------------------- |
-| Make `track()` async                               | Keep enqueue synchronous                                |
+| Don't                                              | Do instead                                                        |
+| -------------------------------------------------- | ----------------------------------------------------------------- |
+| Make `track()` async                               | Keep enqueue synchronous                                          |
 | Mutate `envelope` in enrichers/middleware in place | Return a new object (`{ ...e, context: { ...e.context, k: v } }`) |
-| Reference `window`/`document` at module scope      | Detect at call-site via `globalThis`                    |
-| Add retry/backoff inside `Tracker`                 | Implement inside the consumer transport                 |
-| Import from `src/internal/` outside the package    | Promote to a public export via `mod.ts` if needed       |
-| Use TypeScript `private`                           | Use `#field` ECMAScript private                         |
-| Add new options without a default                  | Every option has a default in the constructor           |
+| Reference `window`/`document` at module scope      | Detect at call-site via `globalThis`                              |
+| Add retry/backoff inside `Tracker`                 | Implement inside the consumer transport                           |
+| Import from `src/internal/` outside the package    | Promote to a public export via `mod.ts` if needed                 |
+| Use TypeScript `private`                           | Use `#field` ECMAScript private                                   |
+| Add new options without a default                  | Every option has a default in the constructor                     |
+| `interface MyEvents extends EventMap`              | `type MyEvents = {...}` or a plain `interface` (no `extends`)     |
+| Constrain a new generic with `M extends EventMap`  | `M extends ValidEventMap<M>` — all public generics must agree     |
 
 ## Testing
 

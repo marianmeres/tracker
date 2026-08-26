@@ -11,14 +11,79 @@ import { uuid } from "./internal/uuid.ts";
 
 const defaultLogger = createClog("tracker");
 
+/** A single event's payload. `undefined` means the event takes no data. */
+export type EventPayload = Record<string, unknown> | undefined;
+
 /**
- * Map of event name → payload type. Consumers may declare their own for
- * autocompletion + payload typing; otherwise the permissive default applies.
+ * The permissive default event map: any name, any payload.
+ *
+ * This is the *open* map — it is what `new Tracker({...})` gets when no generic
+ * argument is supplied, and it is the explicit spelling of "I have no catalog".
+ *
+ * **Do not `extends` it.** An `interface MyEvents extends EventMap {...}`
+ * inherits its string index signature, which silently re-opens the map: every
+ * event name compiles, including typos, while autocomplete keeps working so
+ * nothing looks wrong. Declare your catalog as a `type` alias or a plain
+ * `interface` instead — see {@link ValidEventMap}. `track()` rejects a map that
+ * has both an index signature and declared keys, so the mistake is caught, but
+ * only at the call site.
  */
-export type EventMap = Record<string, Record<string, unknown> | undefined>;
+export type EventMap = Record<string, EventPayload>;
+
+/**
+ * Constraint for a consumer-supplied event map: every value of `M` must be an
+ * {@link EventPayload}.
+ *
+ * Deliberately self-referential (`M extends ValidEventMap<M>`) rather than the
+ * structural `M extends EventMap`, because the latter demands a string index
+ * signature — which a plain `interface` does not have. That rejection is what
+ * used to push people into writing `extends EventMap` (see {@link EventMap}),
+ * so the constraint itself manufactured the footgun. This form accepts type
+ * aliases and plain interfaces alike, and reports a bad payload type at the
+ * declaration site.
+ *
+ * ```ts
+ * type Events = { "a.b": { x: number } };      // ✅
+ * interface Events2 { "a.b": { x: number } }   // ✅ (no `extends` needed)
+ * ```
+ */
+export type ValidEventMap<M> = { [K in keyof M]: EventPayload };
+
+/**
+ * `keyof T` with index signatures stripped — i.e. only explicitly declared keys.
+ * Load-bearing for {@link EventName}: it is the only thing that distinguishes
+ * the deliberate open map (index signature, no declared keys) from a map that
+ * was opened by accident (index signature *and* declared keys).
+ */
+type DeclaredKeys<T> = keyof {
+	[K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
+};
+
+/**
+ * The legal event names for map `M`:
+ *
+ * - no index signature       → the literal key union (a closed catalog)
+ * - index signature, no keys → `string` (the deliberate permissive default)
+ * - index signature AND keys → an error object, i.e. the map is disqualified
+ *
+ * NOTE: the error object type is written INLINE on purpose. Extracting it to a
+ * named alias makes TS print `not assignable to parameter of type
+ * 'OpenEventMapError'` and the explanation is lost unless the reader hovers it.
+ * Inline, the whole sentence appears in the error text. Do not "tidy" this.
+ *
+ * The `[…] extends […]` tuple wrapping is also required: it prevents the
+ * conditional from distributing over `never`, which would take the wrong branch.
+ */
+export type EventName<M> = string extends keyof M
+	? [DeclaredKeys<M>] extends [never] ? string
+	: {
+		__trackerError:
+			"Event map must not have a string index signature; declare it as a `type` alias or plain `interface`, never `extends EventMap`.";
+	}
+	: keyof M & string;
 
 /** Fully-built event envelope passed to enrichers, middleware, and transport. */
-export interface TrackedEvent<M extends EventMap = EventMap> {
+export interface TrackedEvent<M extends ValidEventMap<M> = EventMap> {
 	/** Random per-event UUID. Stable across enrichment/middleware/flush. */
 	eventId: string;
 	/** Event name (key of {@link EventMap}). */
@@ -38,17 +103,19 @@ export interface TrackedEvent<M extends EventMap = EventMap> {
 }
 
 /** Synchronous transformer applied to every event before it enters the queue. */
-export type Enricher<M extends EventMap = EventMap> = (
+export type Enricher<M extends ValidEventMap<M> = EventMap> = (
 	e: TrackedEvent<M>,
 ) => TrackedEvent<M>;
 
 /** Like Enricher but may return `null` to drop the event silently. */
-export type Middleware<M extends EventMap = EventMap> = (
+export type Middleware<M extends ValidEventMap<M> = EventMap> = (
 	e: TrackedEvent<M>,
 ) => TrackedEvent<M> | null;
 
 /** Construction options for {@link Tracker}. */
-export interface TrackerOptions<TEventMap extends EventMap = EventMap> {
+export interface TrackerOptions<
+	TEventMap extends ValidEventMap<TEventMap> = EventMap,
+> {
 	/**
 	 * Receives a batch of fully-enriched events.
 	 * Return value follows @marianmeres/batch semantics:
@@ -143,7 +210,7 @@ type Logger = Pick<Console, "log" | "warn" | "error" | "debug">;
  *
  * Pass a typed `EventMap` for autocompletion + payload type-checking on `track()`.
  */
-export class Tracker<TEventMap extends EventMap = EventMap> {
+export class Tracker<TEventMap extends ValidEventMap<TEventMap> = EventMap> {
 	#options: TrackerOptions<TEventMap>;
 	#logger: Logger;
 	#enrichers: Enricher<TEventMap>[];
@@ -172,9 +239,7 @@ export class Tracker<TEventMap extends EventMap = EventMap> {
 
 		if (options.user) {
 			this.#userId = options.user.id;
-			this.#traits = options.user.traits
-				? { ...options.user.traits }
-				: null;
+			this.#traits = options.user.traits ? { ...options.user.traits } : null;
 		}
 
 		this.#batch = new BatchFlusher<TrackedEvent<TEventMap>>(
@@ -216,11 +281,18 @@ export class Tracker<TEventMap extends EventMap = EventMap> {
 	}
 
 	/** Emit an event. Synchronous; returns immediately after enqueue. */
-	track<K extends keyof TEventMap & string>(
+	track<K extends EventName<TEventMap>>(
 		name: K,
-		...args: TrackArgs<TEventMap[K]>
+		...args: TrackArgs<TEventMap[K & keyof TEventMap]>
 	): void {
-		const data = args[0] as TEventMap[K];
+		// `K` is constrained by `EventName<TEventMap>` rather than by
+		// `keyof TEventMap`, so the compiler cannot see the (guaranteed) narrowing
+		// back to a real key and both of these have to be asserted. `data` goes
+		// via `unknown` because TS 5.8 (the version dnt/tsc uses for the npm
+		// build) rejects the direct assertion between the two indexed accesses as
+		// non-overlapping, even though Deno's newer tsc accepts it.
+		const eventName = name as keyof TEventMap & string;
+		const data = args[0] as unknown as TEventMap[keyof TEventMap & string];
 
 		if (this.#paused) {
 			if (this.#options.debug) {
@@ -230,7 +302,7 @@ export class Tracker<TEventMap extends EventMap = EventMap> {
 		}
 
 		let envelope: TrackedEvent<TEventMap> = buildEnvelope<TEventMap>(
-			name,
+			eventName,
 			data,
 			{
 				sessionId: this.#sessionId,

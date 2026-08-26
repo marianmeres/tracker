@@ -1,5 +1,5 @@
 import { uuid } from "./uuid.ts";
-import type { EventMap, TrackedEvent } from "../tracker.ts";
+import type { TrackedEvent, ValidEventMap } from "../tracker.ts";
 
 /**
  * Builds the canonical envelope for a tracked event. Captures `timestamp` and
@@ -9,7 +9,7 @@ import type { EventMap, TrackedEvent } from "../tracker.ts";
  * Performs a shallow clone of `context` so subsequent `setContext()` mutations
  * do not retroactively change already-queued events.
  */
-export function buildEnvelope<M extends EventMap>(
+export function buildEnvelope<M extends ValidEventMap<M>>(
 	name: keyof M & string,
 	data: M[keyof M & string],
 	identity: {

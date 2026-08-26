@@ -7,10 +7,13 @@ export { Tracker } from "./tracker.ts";
 export type {
 	Enricher,
 	EventMap,
+	EventName,
+	EventPayload,
 	Middleware,
 	TrackedEvent,
 	TrackerOptions,
 	TrackerState,
+	ValidEventMap,
 } from "./tracker.ts";
 export { attachUnloadFlush } from "./unload.ts";
 export type { AttachUnloadFlushOptions } from "./unload.ts";
